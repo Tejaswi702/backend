@@ -7,36 +7,30 @@ import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
-// Supabase Configuration
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use Service Role Key for backend
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Enhanced logging for debugging
-console.log("✅ Middleware loaded: CORS, express.json");
-console.log("🔑 Environment check:");
-console.log("  - RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "SET ✓" : "MISSING ✗");
-console.log("  - RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "SET ✓" : "MISSING ✗");
+/* ================= SUPABASE ================= */
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-/* ================= ROOT TEST ROUTE ================= */
-app.get("/", (req, res) => {
-  res.send("Backend is running 🚀");
-});
-
-/* ================= GET RAZORPAY PUBLIC KEY ================= */
-app.get("/get-razorpay-key", (req, res) => {
-  res.status(200).json({ key: process.env.RAZORPAY_KEY_ID });
-});
-
-/* ================= RAZORPAY INSTANCE ================= */
+/* ================= RAZORPAY ================= */
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
+
+/* ================= ROOT ================= */
+app.get("/", (req, res) => {
+  res.send("Backend running");
+});
+
+/* ================= GET RAZORPAY KEY ================= */
+app.get("/get-razorpay-key", (req, res) => {
+  res.json({ key: process.env.RAZORPAY_KEY_ID });
 });
 
 /* ================= CREATE ORDER ================= */
@@ -44,20 +38,16 @@ app.post("/create-order", async (req, res) => {
   try {
     const { amount } = req.body;
 
-    if (!amount) {
-      return res.status(400).json({ error: "Amount is required" });
-    }
-
     const order = await razorpay.orders.create({
-      amount: amount * 100, // ₹ → paise
+      amount: amount * 100,
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     });
 
-    res.status(200).json(order);
-  } catch (error) {
-    console.error("Create order error:", error);
-    res.status(500).json({ error: "Failed to create order" });
+    res.json(order);
+  } catch (err) {
+    console.error("Create order error:", err);
+    res.status(500).json({ error: "Order creation failed" });
   }
 });
 
@@ -70,30 +60,22 @@ app.post("/verify-payment", (req, res) => {
       razorpay_signature,
     } = req.body;
 
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!secret) {
-      console.error("❌ RAZORPAY_KEY_SECRET is missing from environment variables");
-      return res.status(500).json({ success: false, error: "Server configuration error" });
-    }
-
-    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
 
     const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(sign)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
       .digest("hex");
 
-    if (expectedSignature === razorpay_signature) {
-      console.log("✅ Payment signature verified successfully");
-      res.status(200).json({ success: true });
-    } else {
-      console.error("❌ Payment signature mismatch");
-      res.status(400).json({ success: false, error: "Invalid signature" });
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ success: false });
     }
-  } catch (error) {
-    console.error("Verify error:", error);
-    res.status(500).json({ success: false, error: error.message });
+
+    console.log("✅ Payment signature verified successfully");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Verify payment error:", err);
+    res.status(500).json({ success: false });
   }
 });
 
@@ -106,57 +88,47 @@ app.post("/save-booking", async (req, res) => {
       booking,
       totalAmount,
       paymentId,
-      userId
+      userId,
     } = req.body;
 
     console.log("Saving booking for:", customer.email);
 
-    const { data, error } = await supabase
-      .from("bookings")
-      .insert([
-        {
-          user_id: userId,
-          customer_name: `${customer.firstName} ${customer.lastName}`,
-          customer_email: customer.email,
-          customer_phone: customer.phone,
-          customer_address: customer.address,
-          customer_city: customer.city,
-          customer_zip: customer.zip,
-          customer_message: customer.message,
-          services: services,
-          booking_date: new Date(booking.year, booking.month, booking.date),
-          booking_time: booking.time,
-          total_amount: totalAmount,
-          payment_id: paymentId,
-          payment_status: "paid", // Set to paid after successful verification
-        }
-      ])
-      .select();
+    const { error } = await supabase.from("booking").insert([
+      {
+        user_id: userId || null,
+        customer_name: `${customer.firstName} ${customer.lastName}`,
+        customer_email: customer.email,
+        phone_number: customer.phone,
+
+        services: JSON.stringify(services),
+
+        booking_date: `${booking.year}-${booking.month + 1}-${booking.date}`,
+        booking_time: booking.time,
+
+        total_amount: totalAmount,
+
+        payment_status: "paid",
+        payment_verified: true,
+
+        razorpay_payment_id: paymentId,
+      },
+    ]);
 
     if (error) {
-      console.error("Supabase insert error:", error);
-      return res.status(500).json({ success: false, error: error.message });
+      console.error("❌ SUPABASE INSERT ERROR:", error);
+      return res.status(500).json({ success: false });
     }
 
-    console.log("Booking saved successfully ✅");
-    res.status(200).json({ success: true, data });
-  } catch (error) {
-    console.error("Save booking error:", error);
-    res.status(500).json({ success: false, error: "Internal server error" });
+    console.log("✅ Booking saved successfully");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Save booking crash:", err);
+    res.status(500).json({ success: false });
   }
 });
-
 
 /* ================= START SERVER ================= */
-console.log("📋 Registered routes:");
-app._router.stack.forEach((r) => {
-  if (r.route && r.route.path) {
-    console.log(`  ${Object.keys(r.route.methods).join(", ").toUpperCase()} ${r.route.path}`);
-  }
-});
-
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
-  console.log(`📍 Accessible at: http://localhost:${PORT}`);
 });
