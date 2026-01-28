@@ -10,6 +10,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Enhanced logging for debugging
+console.log("✅ Middleware loaded: CORS, express.json");
+console.log("🔑 Environment check:");
+console.log("  - RAZORPAY_KEY_ID:", process.env.RAZORPAY_KEY_ID ? "SET ✓" : "MISSING ✗");
+console.log("  - RAZORPAY_KEY_SECRET:", process.env.RAZORPAY_KEY_SECRET ? "SET ✓" : "MISSING ✗");
+
 /* ================= ROOT TEST ROUTE ================= */
 app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
@@ -76,7 +82,15 @@ app.post("/verify-payment", (req, res) => {
 });
 
 /* ================= START SERVER ================= */
+console.log("📋 Registered routes:");
+app._router.stack.forEach((r) => {
+  if (r.route && r.route.path) {
+    console.log(`  ${Object.keys(r.route.methods).join(", ").toUpperCase()} ${r.route.path}`);
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
+  console.log(`🚀 Backend running on port ${PORT}`);
+  console.log(`📍 Accessible at: http://localhost:${PORT}`);
 });
