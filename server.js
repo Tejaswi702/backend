@@ -15,6 +15,11 @@ app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
 });
 
+/* ================= GET RAZORPAY PUBLIC KEY ================= */
+app.get("/get-razorpay-key", (req, res) => {
+  res.status(200).json({ key: process.env.RAZORPAY_KEY_ID });
+});
+
 /* ================= RAZORPAY INSTANCE ================= */
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
