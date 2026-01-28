@@ -93,7 +93,7 @@ app.post("/save-booking", async (req, res) => {
 
     console.log("Saving booking for:", customer.email);
 
-    const { error } = await supabase.from("booking").insert([
+    const { error } = await supabase.from("bookings").insert([
       {
         user_id: userId || null,
         customer_name: `${customer.firstName} ${customer.lastName}`,
@@ -115,8 +115,8 @@ app.post("/save-booking", async (req, res) => {
     ]);
 
     if (error) {
-      console.error("❌ SUPABASE INSERT ERROR:", error);
-      return res.status(500).json({ success: false });
+      console.error("❌ SUPABASE INSERT ERROR:", JSON.stringify(error, null, 2));
+      return res.status(500).json({ success: false, message: error.message });
     }
 
     console.log("✅ Booking saved successfully");
