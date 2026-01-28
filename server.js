@@ -39,14 +39,14 @@ app.post("/create-order", async (req, res) => {
     const { amount } = req.body;
 
     const order = await razorpay.orders.create({
-      amount: amount * 100,
+      amount: amount * 100, // ₹ → paise
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     });
 
     res.json(order);
   } catch (err) {
-    console.error("Create order error:", err);
+    console.error("❌ Create order error:", err);
     res.status(500).json({ error: "Order creation failed" });
   }
 });
@@ -60,7 +60,7 @@ app.post("/verify-payment", (req, res) => {
       razorpay_signature,
     } = req.body;
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
 
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -74,7 +74,7 @@ app.post("/verify-payment", (req, res) => {
     console.log("✅ Payment signature verified successfully");
     res.json({ success: true });
   } catch (err) {
-    console.error("Verify payment error:", err);
+    console.error("❌ Verify payment error:", err);
     res.status(500).json({ success: false });
   }
 });
@@ -91,38 +91,42 @@ app.post("/save-booking", async (req, res) => {
       userId,
     } = req.body;
 
-    console.log("Saving booking for:", customer.email);
+    console.log("💾 Saving booking for:", customer.email);
 
-    const { error } = await supabase.from("bookings").insert([
-      {
-        user_id: userId || null,
-        customer_name: `${customer.firstName} ${customer.lastName}`,
-        customer_email: customer.email,
-        phone_number: customer.phone,
+    const { error } = await supabase
+      .from("booking") // ✅ CORRECT TABLE NAME
+      .insert([
+        {
+          user_id: userId || null,
+          customer_name: `${customer.firstName} ${customer.lastName}`,
+          customer_email: customer.email,
+          phone_number: customer.phone,
 
-        services: JSON.stringify(services),
+          services: JSON.stringify(services),
 
-        booking_date: `${booking.year}-${booking.month + 1}-${booking.date}`,
-        booking_time: booking.time,
+          booking_date: `${booking.year}-${booking.month + 1}-${booking.date}`,
+          booking_time: booking.time,
 
-        total_amount: totalAmount,
+          total_amount: totalAmount,
+          payment_status: "paid",
+          payment_verified: true,
 
-        payment_status: "paid",
-        payment_verified: true,
-
-        razorpay_payment_id: paymentId,
-      },
-    ]);
+          razorpay_payment_id: paymentId,
+        },
+      ]);
 
     if (error) {
-      console.error("❌ SUPABASE INSERT ERROR:", JSON.stringify(error, null, 2));
-      return res.status(500).json({ success: false, message: error.message });
+      console.error("❌ SUPABASE INSERT ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
     }
 
     console.log("✅ Booking saved successfully");
     res.json({ success: true });
   } catch (err) {
-    console.error("Save booking crash:", err);
+    console.error("❌ Save booking crash:", err);
     res.status(500).json({ success: false });
   }
 });
