@@ -3,8 +3,15 @@ import Razorpay from "razorpay";
 import cors from "cors";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
+
+// Supabase Configuration
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use Service Role Key for backend
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 
 const app = express();
 app.use(cors());
@@ -63,23 +70,82 @@ app.post("/verify-payment", (req, res) => {
       razorpay_signature,
     } = req.body;
 
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!secret) {
+      console.error("❌ RAZORPAY_KEY_SECRET is missing from environment variables");
+      return res.status(500).json({ success: false, error: "Server configuration error" });
+    }
+
     const sign = razorpay_order_id + "|" + razorpay_payment_id;
 
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .createHmac("sha256", secret)
       .update(sign)
       .digest("hex");
 
     if (expectedSignature === razorpay_signature) {
+      console.log("✅ Payment signature verified successfully");
       res.status(200).json({ success: true });
     } else {
-      res.status(400).json({ success: false });
+      console.error("❌ Payment signature mismatch");
+      res.status(400).json({ success: false, error: "Invalid signature" });
     }
   } catch (error) {
     console.error("Verify error:", error);
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
+
+/* ================= SAVE BOOKING ================= */
+app.post("/save-booking", async (req, res) => {
+  try {
+    const {
+      customer,
+      services,
+      booking,
+      totalAmount,
+      paymentId,
+      userId
+    } = req.body;
+
+    console.log("Saving booking for:", customer.email);
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .insert([
+        {
+          user_id: userId,
+          customer_name: `${customer.firstName} ${customer.lastName}`,
+          customer_email: customer.email,
+          customer_phone: customer.phone,
+          customer_address: customer.address,
+          customer_city: customer.city,
+          customer_zip: customer.zip,
+          customer_message: customer.message,
+          services: services,
+          booking_date: new Date(booking.year, booking.month, booking.date),
+          booking_time: booking.time,
+          total_amount: totalAmount,
+          payment_id: paymentId,
+          payment_status: "paid", // Set to paid after successful verification
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    console.log("Booking saved successfully ✅");
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error("Save booking error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 
 /* ================= START SERVER ================= */
 console.log("📋 Registered routes:");
