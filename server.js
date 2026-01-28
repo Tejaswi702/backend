@@ -93,12 +93,12 @@ app.post("/save-booking", async (req, res) => {
 
     console.log("Saving booking for:", customer.email);
 
-    const { error } = await supabase.from("bookings").insert([
+    const { error } = await supabase.from("booking").insert([
       {
         user_id: userId || null,
-        customer_name: `${customer.firstName} ${customer.lastName}`,
-        customer_email: customer.email,
-        phone_number: customer.phone,
+        name: `${customer.firstName} ${customer.lastName}`,
+        email: customer.email,
+        phone: customer.phone,
 
         services: JSON.stringify(services),
 
@@ -108,9 +108,7 @@ app.post("/save-booking", async (req, res) => {
         total_amount: totalAmount,
 
         payment_status: "paid",
-        payment_verified: true,
-
-        razorpay_payment_id: paymentId,
+        payment_id: paymentId,
       },
     ]);
 
