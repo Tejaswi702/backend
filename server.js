@@ -10,13 +10,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Razorpay instance (keys will come from Render ENV)
+/* ================= ROOT TEST ROUTE ================= */
+app.get("/", (req, res) => {
+  res.send("Backend is running 🚀");
+});
+
+/* ================= RAZORPAY INSTANCE ================= */
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// ✅ Create Order
+/* ================= CREATE ORDER ================= */
 app.post("/create-order", async (req, res) => {
   try {
     const { amount } = req.body;
@@ -26,7 +31,7 @@ app.post("/create-order", async (req, res) => {
     }
 
     const order = await razorpay.orders.create({
-      amount: amount * 100, // 🔥 VERY IMPORTANT (₹ → paise)
+      amount: amount * 100, // ₹ → paise
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     });
@@ -38,7 +43,7 @@ app.post("/create-order", async (req, res) => {
   }
 });
 
-// ✅ Verify Payment
+/* ================= VERIFY PAYMENT ================= */
 app.post("/verify-payment", (req, res) => {
   try {
     const {
@@ -65,7 +70,7 @@ app.post("/verify-payment", (req, res) => {
   }
 });
 
-// ✅ Start Server
+/* ================= START SERVER ================= */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
