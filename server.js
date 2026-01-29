@@ -87,12 +87,12 @@ app.post("/save-booking", async (req, res) => {
       services,
       booking,
       totalAmount,
+      payment,   // 👈 EXPECT FULL PAYMENT OBJECT
       userId,
-      payment, // ✅ READ PAYMENT OBJECT
     } = req.body;
 
     console.log("💾 Saving booking for:", customer.email);
-    console.log("💳 Payment received:", payment);
+    console.log("💳 Payment data:", payment);
 
     const { error } = await supabase.from("bookings").insert([
       {
@@ -103,7 +103,7 @@ app.post("/save-booking", async (req, res) => {
         phone_number: customer.phone,
         full_address: customer.address,
 
-        services,
+        services: services, // jsonb
 
         booking_date: `${booking.year}-${booking.month + 1}-${booking.date}`,
         booking_time: booking.time,
@@ -112,10 +112,8 @@ app.post("/save-booking", async (req, res) => {
         payment_status: "paid",
         payment_verified: true,
 
-        // ✅ THIS IS THE FIX
         razorpay_order_id: payment.razorpay_order_id,
         razorpay_payment_id: payment.razorpay_payment_id,
-        payment_method: payment.payment_method,
       },
     ]);
 
@@ -127,10 +125,16 @@ app.post("/save-booking", async (req, res) => {
       });
     }
 
-    console.log("✅ Booking saved with orderId & paymentId");
+    console.log("✅ Booking saved successfully");
     res.json({ success: true });
   } catch (err) {
     console.error("❌ Save booking crash:", err);
     res.status(500).json({ success: false });
   }
+});
+
+/* ================= START SERVER ================= */
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Backend running on port ${PORT}`);
 });
