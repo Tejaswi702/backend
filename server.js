@@ -82,23 +82,17 @@ app.post("/verify-payment", (req, res) => {
 /* ================= SAVE BOOKING ================= */
 app.post("/save-booking", async (req, res) => {
   try {
-    console.log("📥 RAW BODY:", JSON.stringify(req.body, null, 2));
+    const {
+      customer,
+      services,
+      booking,
+      totalAmount,
+      userId,
+      payment, // ✅ READ PAYMENT OBJECT
+    } = req.body;
 
-    const customer = req.body.customer;
-    const services = req.body.services;
-    const booking = req.body.booking;
-    const totalAmount = req.body.totalAmount;
-    const userId = req.body.userId;
-
-    const payment = req.body.payment || {};
-
-    const razorpay_order_id = payment.razorpay_order_id || null;
-    const razorpay_payment_id = payment.razorpay_payment_id || null;
-    const payment_method = payment.payment_method || "razorpay";
-
-    console.log("💳 order_id:", razorpay_order_id);
-    console.log("💳 payment_id:", razorpay_payment_id);
-    console.log("💳 method:", payment_method);
+    console.log("💾 Saving booking for:", customer.email);
+    console.log("💳 Payment received:", payment);
 
     const { error } = await supabase.from("bookings").insert([
       {
@@ -109,7 +103,7 @@ app.post("/save-booking", async (req, res) => {
         phone_number: customer.phone,
         full_address: customer.address,
 
-        services: services,
+        services,
 
         booking_date: `${booking.year}-${booking.month + 1}-${booking.date}`,
         booking_time: booking.time,
@@ -118,21 +112,25 @@ app.post("/save-booking", async (req, res) => {
         payment_status: "paid",
         payment_verified: true,
 
-        razorpay_order_id,
-        razorpay_payment_id,
-        payment_method,
+        // ✅ THIS IS THE FIX
+        razorpay_order_id: payment.razorpay_order_id,
+        razorpay_payment_id: payment.razorpay_payment_id,
+        payment_method: payment.payment_method,
       },
     ]);
 
     if (error) {
-      console.error("❌ SUPABASE ERROR:", error);
-      return res.status(500).json({ success: false, message: error.message });
+      console.error("❌ SUPABASE INSERT ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
     }
 
-    console.log("✅ BOOKING SAVED SUCCESSFULLY");
+    console.log("✅ Booking saved with orderId & paymentId");
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ SERVER CRASH:", err);
+    console.error("❌ Save booking crash:", err);
     res.status(500).json({ success: false });
   }
 });
