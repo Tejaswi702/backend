@@ -39,7 +39,7 @@ app.post("/create-order", async (req, res) => {
     const { amount } = req.body;
 
     const order = await razorpay.orders.create({
-      amount: amount * 100,
+      amount: amount * 100, // ₹ → paise
       currency: "INR",
       receipt: `receipt_${Date.now()}`,
     });
@@ -87,22 +87,23 @@ app.post("/save-booking", async (req, res) => {
       services,
       booking,
       totalAmount,
-      paymentId,
       userId,
+      payment, // ✅ READ PAYMENT OBJECT
     } = req.body;
 
     console.log("💾 Saving booking for:", customer.email);
+    console.log("💳 Payment received:", payment);
 
     const { error } = await supabase.from("bookings").insert([
       {
-        user_id: userId || null,
+        user_id: userId,
 
         customer_name: `${customer.firstName} ${customer.lastName}`,
-        email: customer.email,                 // ✅ matches table
-        phone_number: customer.phone,          // ✅
-        full_address: customer.address,        // ✅
+        email: customer.email,
+        phone_number: customer.phone,
+        full_address: customer.address,
 
-        services: services,                    // jsonb (no stringify needed)
+        services,
 
         booking_date: `${booking.year}-${booking.month + 1}-${booking.date}`,
         booking_time: booking.time,
@@ -111,7 +112,10 @@ app.post("/save-booking", async (req, res) => {
         payment_status: "paid",
         payment_verified: true,
 
-        razorpay_payment_id: paymentId,
+        // ✅ THIS IS THE FIX
+        razorpay_order_id: payment.razorpay_order_id,
+        razorpay_payment_id: payment.razorpay_payment_id,
+        payment_method: payment.payment_method,
       },
     ]);
 
@@ -123,16 +127,10 @@ app.post("/save-booking", async (req, res) => {
       });
     }
 
-    console.log("✅ Booking saved successfully");
+    console.log("✅ Booking saved with orderId & paymentId");
     res.json({ success: true });
   } catch (err) {
     console.error("❌ Save booking crash:", err);
     res.status(500).json({ success: false });
   }
-});
-
-/* ================= START SERVER ================= */
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`🚀 Backend running on port ${PORT}`);
 });
