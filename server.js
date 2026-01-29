@@ -82,7 +82,7 @@ app.post("/verify-payment", (req, res) => {
 /* ================= SAVE BOOKING ================= */
 app.post("/save-booking", async (req, res) => {
   try {
-    console.log("📥 RAW REQUEST BODY:", JSON.stringify(req.body, null, 2));
+    console.log("📥 RAW BODY:", JSON.stringify(req.body, null, 2));
 
     const customer = req.body.customer;
     const services = req.body.services;
@@ -90,18 +90,15 @@ app.post("/save-booking", async (req, res) => {
     const totalAmount = req.body.totalAmount;
     const userId = req.body.userId;
 
-    // 👇 FORCE READ PAYMENT DATA
-    const razorpay_order_id =
-      req.body.payment?.razorpay_order_id || null;
-    const razorpay_payment_id =
-      req.body.payment?.razorpay_payment_id || null;
-    const payment_method =
-      req.body.payment?.payment_method || "razorpay";
+    const payment = req.body.payment || {};
+
+    const razorpay_order_id = payment.razorpay_order_id || null;
+    const razorpay_payment_id = payment.razorpay_payment_id || null;
+    const payment_method = payment.payment_method || "razorpay";
 
     console.log("💳 order_id:", razorpay_order_id);
     console.log("💳 payment_id:", razorpay_payment_id);
     console.log("💳 method:", payment_method);
-    console.log("👤 user_id:", userId);
 
     const { error } = await supabase.from("bookings").insert([
       {
@@ -121,21 +118,21 @@ app.post("/save-booking", async (req, res) => {
         payment_status: "paid",
         payment_verified: true,
 
-        razorpay_order_id: razorpay_order_id,
-        razorpay_payment_id: razorpay_payment_id,
-        payment_method: payment_method,
+        razorpay_order_id,
+        razorpay_payment_id,
+        payment_method,
       },
     ]);
 
     if (error) {
-      console.error("❌ SUPABASE INSERT ERROR:", error);
+      console.error("❌ SUPABASE ERROR:", error);
       return res.status(500).json({ success: false, message: error.message });
     }
 
-    console.log("✅ BOOKING SAVED WITH PAYMENT DETAILS");
+    console.log("✅ BOOKING SAVED SUCCESSFULLY");
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ SAVE BOOKING CRASH:", err);
+    console.error("❌ SERVER CRASH:", err);
     res.status(500).json({ success: false });
   }
 });
